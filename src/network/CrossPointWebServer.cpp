@@ -81,6 +81,22 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedWebPath(const String& path) {
+  const String normalized = normalizeWebPath(path);
+  int start = 0;
+  while (start < static_cast<int>(normalized.length())) {
+    if (normalized.charAt(start) == '/') {
+      start++;
+      continue;
+    }
+    int end = normalized.indexOf('/', start);
+    if (end < 0) end = normalized.length();
+    if (isProtectedItemName(normalized.substring(start, end))) return true;
+    start = end + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -628,6 +644,12 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     String filePath = state.path;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
+
+    // Match the protected-path policy used by WebDAV before touching storage.
+    if (isProtectedWebPath(filePath)) {
+      state.error = "Cannot write protected items";
+      return;
+    }
 
     // Check if file already exists - SD operations can be slow
     esp_task_wdt_reset();
