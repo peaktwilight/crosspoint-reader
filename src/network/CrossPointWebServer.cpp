@@ -81,6 +81,22 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedWebPath(const String& inputPath) {
+  const String path = normalizeWebPath(inputPath);
+  int start = 0;
+  while (start < static_cast<int>(path.length())) {
+    if (path.charAt(start) == '/') {
+      start++;
+      continue;
+    }
+    int end = path.indexOf('/', start);
+    if (end < 0) end = path.length();
+    if (isProtectedItemName(path.substring(start, end))) return true;
+    start = end + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -628,6 +644,12 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     String filePath = state.path;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
+
+    // Do not allow uploads to hidden/system paths, including protected parent directories.
+    if (isProtectedWebPath(filePath)) {
+      state.error = "Cannot upload to protected path";
+      return;
+    }
 
     // Check if file already exists - SD operations can be slow
     esp_task_wdt_reset();
@@ -1308,6 +1330,12 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
 
           LOG_DBG("WS", "Starting upload: %s (%d bytes) to %s", wsUploadFileName.c_str(), wsUploadSize,
                   filePath.c_str());
+
+          // Do not allow uploads to hidden/system paths, including protected parent directories.
+          if (isProtectedWebPath(filePath)) {
+            wsServer->sendTXT(num, "ERROR:Protected path");
+            return;
+          }
 
           // Check if file exists and remove it
           esp_task_wdt_reset();
