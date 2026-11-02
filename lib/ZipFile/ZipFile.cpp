@@ -418,6 +418,13 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
   const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
+  if (dataSize < inflatedDataSize) {
+    LOG_ERR("ZIP", "Output buffer size overflow");
+    if (!wasOpen) {
+      close();
+    }
+    return nullptr;
+  }
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
   if (data == nullptr) {
     LOG_ERR("ZIP", "Failed to allocate memory for output buffer (%zu bytes)", dataSize);
