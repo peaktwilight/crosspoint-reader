@@ -994,31 +994,22 @@ void CrossPointWebServer::handleDelete() const {
       continue;
     }
 
-    // Ensure path starts with /
-    if (!itemPath.startsWith("/")) {
-      itemPath = "/" + itemPath;
-    }
+    // Normalize before checking protected path segments and before filesystem access.
+    itemPath = normalizeWebPath(itemPath);
 
-    // Security check: prevent deletion of protected items
-    const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-
-    // Hidden/system files are protected
-    if (itemName.startsWith(".")) {
-      failedItems += itemPath + " (hidden/system file); ";
-      allSuccess = false;
-      continue;
-    }
-
-    // Check against explicitly protected items
     bool isProtected = false;
-    for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-      if (itemName.equals(HIDDEN_ITEMS[i])) {
+    int segmentStart = 1;
+    while (segmentStart < static_cast<int>(itemPath.length())) {
+      int segmentEnd = itemPath.indexOf('/', segmentStart);
+      if (segmentEnd < 0) segmentEnd = itemPath.length();
+      if (isProtectedItemName(itemPath.substring(segmentStart, segmentEnd))) {
         isProtected = true;
         break;
       }
+      segmentStart = segmentEnd + 1;
     }
     if (isProtected) {
-      failedItems += itemPath + " (protected file); ";
+      failedItems += itemPath + " (protected path); ";
       allSuccess = false;
       continue;
     }
