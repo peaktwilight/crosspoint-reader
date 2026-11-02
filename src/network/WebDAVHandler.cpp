@@ -174,6 +174,11 @@ void WebDAVHandler::handlePropfind(WebServer& s) {
   String path = getRequestPath(s);
   int depth = getDepth(s);
 
+  if (isProtectedPath(path)) {
+    s.send(403, "text/plain", "Forbidden");
+    return;
+  }
+
   LOG_DBG("DAV", "PROPFIND %s depth=%d", path.c_str(), depth);
 
   // Check if path exists
