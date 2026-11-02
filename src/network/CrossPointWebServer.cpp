@@ -485,16 +485,27 @@ void CrossPointWebServer::handleDownload() const {
     itemPath = "/" + itemPath;
   }
 
-  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-  if (itemName.startsWith(".")) {
-    server->send(403, "text/plain", "Cannot access system files");
-    return;
-  }
-  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-    if (itemName.equals(HIDDEN_ITEMS[i])) {
-      server->send(403, "text/plain", "Cannot access protected items");
+  int segmentStart = 0;
+  while (segmentStart < (int)itemPath.length()) {
+    while (segmentStart < (int)itemPath.length() && itemPath.charAt(segmentStart) == '/') {
+      segmentStart++;
+    }
+    if (segmentStart >= (int)itemPath.length()) break;
+
+    int segmentEnd = itemPath.indexOf('/', segmentStart);
+    if (segmentEnd < 0) segmentEnd = itemPath.length();
+    const String segment = itemPath.substring(segmentStart, segmentEnd);
+    if (segment.startsWith(".")) {
+      server->send(403, "text/plain", "Cannot access system files");
       return;
     }
+    for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+      if (segment.equals(HIDDEN_ITEMS[i])) {
+        server->send(403, "text/plain", "Cannot access protected items");
+        return;
+      }
+    }
+    segmentStart = segmentEnd + 1;
   }
 
   if (!Storage.exists(itemPath.c_str())) {
