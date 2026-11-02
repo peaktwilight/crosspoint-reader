@@ -50,6 +50,19 @@ class FileWriteStream final : public Stream {
   bool writeOk_ = true;
   HttpDownloader::ProgressCallback progress_;
 };
+
+void addOpdsAuthorization(HTTPClient& http, const std::string& url) {
+  if (strlen(SETTINGS.opdsUsername) == 0 || strlen(SETTINGS.opdsPassword) == 0) return;
+
+  const std::string opdsOrigin = UrlUtils::extractHost(UrlUtils::ensureProtocol(SETTINGS.opdsServerUrl));
+  if (opdsOrigin.empty() || UrlUtils::extractHost(url) != opdsOrigin) return;
+
+  std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
+  String encoded = base64::encode(credentials.c_str());
+  http.addHeader("Authorization", "Basic " + encoded);
+  // Do not risk forwarding credentials to a different origin on redirect.
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+}
 }  // namespace
 
 bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
@@ -70,12 +83,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, Stream& outContent) {
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-  // Add Basic HTTP auth if credentials are configured
-  if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
+  addOpdsAuthorization(http, url);
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
@@ -121,12 +129,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
 
-  // Add Basic HTTP auth if credentials are configured
-  if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
-    String encoded = base64::encode(credentials.c_str());
-    http.addHeader("Authorization", "Basic " + encoded);
-  }
+  addOpdsAuthorization(http, url);
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
