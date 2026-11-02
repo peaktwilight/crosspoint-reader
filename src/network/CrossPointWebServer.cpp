@@ -81,6 +81,20 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedPath(const String& path) {
+  const String normalized = normalizeWebPath(path);
+  size_t start = 1;
+  while (start < normalized.length()) {
+    int end = normalized.indexOf('/', start);
+    if (end < 0) end = normalized.length();
+    if (isProtectedItemName(normalized.substring(start, end))) {
+      return true;
+    }
+    start = end + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -628,6 +642,13 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     String filePath = state.path;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
+
+    // Do not allow network uploads to replace hidden or protected reader state.
+    if (isProtectedPath(filePath)) {
+      state.error = "Cannot upload to protected items";
+      LOG_DBG("WEB", "[UPLOAD] Rejected protected destination: %s", filePath.c_str());
+      return;
+    }
 
     // Check if file already exists - SD operations can be slow
     esp_task_wdt_reset();
@@ -1305,6 +1326,12 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
           String filePath = wsUploadPath;
           if (!filePath.endsWith("/")) filePath += "/";
           filePath += wsUploadFileName;
+
+          // Do not allow network uploads to replace hidden or protected reader state.
+          if (isProtectedPath(filePath)) {
+            wsServer->sendTXT(num, "ERROR:Cannot write protected items");
+            return;
+          }
 
           LOG_DBG("WS", "Starting upload: %s (%d bytes) to %s", wsUploadFileName.c_str(), wsUploadSize,
                   filePath.c_str());
