@@ -417,7 +417,14 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
 
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
-  const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
+  if (trailingNullByte && inflatedDataSize == UINT32_MAX) {
+    LOG_ERR("ZIP", "Cannot add trailing NUL to maximum-sized member");
+    if (!wasOpen) {
+      close();
+    }
+    return nullptr;
+  }
+  const size_t dataSize = static_cast<size_t>(inflatedDataSize) + (trailingNullByte ? 1U : 0U);
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
   if (data == nullptr) {
     LOG_ERR("ZIP", "Failed to allocate memory for output buffer (%zu bytes)", dataSize);
