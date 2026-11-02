@@ -81,6 +81,23 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedWebPath(const String& path) {
+  int start = 0;
+  while (start < static_cast<int>(path.length())) {
+    if (path.charAt(start) == '/') {
+      start++;
+      continue;
+    }
+    int end = path.indexOf('/', start);
+    if (end == -1) end = path.length();
+    if (isProtectedItemName(path.substring(start, end))) {
+      return true;
+    }
+    start = end + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -485,16 +502,9 @@ void CrossPointWebServer::handleDownload() const {
     itemPath = "/" + itemPath;
   }
 
-  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-  if (itemName.startsWith(".")) {
-    server->send(403, "text/plain", "Cannot access system files");
+  if (isProtectedWebPath(itemPath)) {
+    server->send(403, "text/plain", "Cannot access protected items");
     return;
-  }
-  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-    if (itemName.equals(HIDDEN_ITEMS[i])) {
-      server->send(403, "text/plain", "Cannot access protected items");
-      return;
-    }
   }
 
   if (!Storage.exists(itemPath.c_str())) {
