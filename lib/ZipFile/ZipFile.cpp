@@ -5,6 +5,7 @@
 #include <Logging.h>
 
 #include <algorithm>
+#include <limits>
 
 struct ZipInflateCtx {
   InflateReader reader;  // Must be first — callback casts uzlib_uncomp* to ZipInflateCtx*
@@ -417,6 +418,13 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
 
   const auto deflatedDataSize = fileStat.compressedSize;
   const auto inflatedDataSize = fileStat.uncompressedSize;
+  if (trailingNullByte && inflatedDataSize == std::numeric_limits<size_t>::max()) {
+    LOG_ERR("ZIP", "Output size overflows when adding trailing NUL");
+    if (!wasOpen) {
+      close();
+    }
+    return nullptr;
+  }
   const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
   if (data == nullptr) {
