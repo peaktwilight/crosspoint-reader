@@ -476,25 +476,23 @@ void CrossPointWebServer::handleDownload() const {
     return;
   }
 
-  String itemPath = server->arg("path");
-  if (itemPath.isEmpty() || itemPath == "/") {
+  String itemPath = normalizeWebPath(server->arg("path"));
+  if (itemPath == "/") {
     server->send(400, "text/plain", "Invalid path");
     return;
   }
-  if (!itemPath.startsWith("/")) {
-    itemPath = "/" + itemPath;
-  }
 
-  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-  if (itemName.startsWith(".")) {
-    server->send(403, "text/plain", "Cannot access system files");
-    return;
-  }
-  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-    if (itemName.equals(HIDDEN_ITEMS[i])) {
+  // Protect every path component, not only the basename: hidden storage
+  // directories can otherwise be traversed via a visible child filename.
+  int segmentStart = 1;
+  while (segmentStart < (int)itemPath.length()) {
+    int segmentEnd = itemPath.indexOf('/', segmentStart);
+    if (segmentEnd == -1) segmentEnd = itemPath.length();
+    if (isProtectedItemName(itemPath.substring(segmentStart, segmentEnd))) {
       server->send(403, "text/plain", "Cannot access protected items");
       return;
     }
+    segmentStart = segmentEnd + 1;
   }
 
   if (!Storage.exists(itemPath.c_str())) {
