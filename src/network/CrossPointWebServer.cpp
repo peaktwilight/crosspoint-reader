@@ -629,21 +629,11 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
 
-    // Check if file already exists - SD operations can be slow
-    esp_task_wdt_reset();
-    if (Storage.exists(filePath.c_str())) {
-      LOG_DBG("WEB", "[UPLOAD] Overwriting existing file: %s", filePath.c_str());
-      esp_task_wdt_reset();
-      Storage.remove(filePath.c_str());
-    }
-
-    // Open file for writing - this can be slow due to FAT cluster allocation
-    esp_task_wdt_reset();
-    if (!Storage.openFileForWrite("WEB", filePath, state.file)) {
-      state.error = "Failed to create file on SD card";
-      LOG_DBG("WEB", "[UPLOAD] FAILED to create file: %s", filePath.c_str());
-      return;
-    }
+    // Authorization must be enforced before any write or replacement operation.
+    // The current project has no shared web-service authentication mechanism;
+    // refuse writes until one is implemented for all mutation protocols.
+    state.error = "Unauthorized";
+    return;
     esp_task_wdt_reset();
 
     LOG_DBG("WEB", "[UPLOAD] File created successfully: %s", filePath.c_str());
