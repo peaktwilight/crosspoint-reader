@@ -172,6 +172,11 @@ void WebDAVHandler::handleOptions(WebServer& s) {
 
 void WebDAVHandler::handlePropfind(WebServer& s) {
   String path = getRequestPath(s);
+  if (isProtectedPath(path)) {
+    s.send(403, "text/plain", "Forbidden");
+    return;
+  }
+
   int depth = getDepth(s);
 
   LOG_DBG("DAV", "PROPFIND %s depth=%d", path.c_str(), depth);
