@@ -81,6 +81,22 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedPath(const String& path) {
+  const String normalizedPath = normalizeWebPath(path);
+  int componentStart = normalizedPath.startsWith("/") ? 1 : 0;
+  while (componentStart < normalizedPath.length()) {
+    int componentEnd = normalizedPath.indexOf('/', componentStart);
+    if (componentEnd < 0) {
+      componentEnd = normalizedPath.length();
+    }
+    if (isProtectedItemName(normalizedPath.substring(componentStart, componentEnd))) {
+      return true;
+    }
+    componentStart = componentEnd + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -484,6 +500,10 @@ void CrossPointWebServer::handleDownload() const {
   if (!itemPath.startsWith("/")) {
     itemPath = "/" + itemPath;
   }
+  if (isProtectedPath(itemPath)) {
+    server->send(403, "text/plain", "Cannot access protected items");
+    return;
+  }
 
   const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
   if (itemName.startsWith(".")) {
@@ -628,6 +648,10 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     String filePath = state.path;
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += state.fileName;
+    if (isProtectedPath(filePath)) {
+      state.error = "Cannot access protected items";
+      return;
+    }
 
     // Check if file already exists - SD operations can be slow
     esp_task_wdt_reset();
