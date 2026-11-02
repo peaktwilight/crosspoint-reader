@@ -994,31 +994,25 @@ void CrossPointWebServer::handleDelete() const {
       continue;
     }
 
-    // Ensure path starts with /
-    if (!itemPath.startsWith("/")) {
-      itemPath = "/" + itemPath;
-    }
-
-    // Security check: prevent deletion of protected items
-    const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-
-    // Hidden/system files are protected
-    if (itemName.startsWith(".")) {
-      failedItems += itemPath + " (hidden/system file); ";
-      allSuccess = false;
-      continue;
-    }
-
-    // Check against explicitly protected items
-    bool isProtected = false;
-    for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-      if (itemName.equals(HIDDEN_ITEMS[i])) {
-        isProtected = true;
+    // Normalize before checking every component so hidden parent directories
+    // cannot be bypassed by naming an ordinary file inside them.
+    itemPath = normalizeWebPath(itemPath);
+    bool hasProtectedComponent = false;
+    int componentStart = 1;  // normalizeWebPath returns an absolute path
+    while (componentStart < itemPath.length()) {
+      int componentEnd = itemPath.indexOf('/', componentStart);
+      if (componentEnd < 0) {
+        componentEnd = itemPath.length();
+      }
+      const String component = itemPath.substring(componentStart, componentEnd);
+      if (isProtectedItemName(component)) {
+        hasProtectedComponent = true;
         break;
       }
+      componentStart = componentEnd + 1;
     }
-    if (isProtected) {
-      failedItems += itemPath + " (protected file); ";
+    if (hasProtectedComponent) {
+      failedItems += itemPath + " (hidden/protected item); ";
       allSuccess = false;
       continue;
     }
