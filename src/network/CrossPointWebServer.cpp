@@ -81,6 +81,27 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isSafeUploadTarget(const String& inputPath, const String& fileName, String& normalizedPath) {
+  if (fileName.isEmpty() || fileName == "." || fileName == ".." || fileName.indexOf('/') >= 0 ||
+      fileName.indexOf('\\') >= 0 || isProtectedItemName(fileName)) {
+    return false;
+  }
+
+  normalizedPath = normalizeWebPath(inputPath);
+  int componentStart = 1;
+  while (componentStart < normalizedPath.length()) {
+    int componentEnd = normalizedPath.indexOf('/', componentStart);
+    if (componentEnd < 0) {
+      componentEnd = normalizedPath.length();
+    }
+    if (isProtectedItemName(normalizedPath.substring(componentStart, componentEnd))) {
+      return false;
+    }
+    componentStart = componentEnd + 1;
+  }
+  return true;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -623,6 +644,13 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
 
     LOG_DBG("WEB", "[UPLOAD] START: %s to path: %s", state.fileName.c_str(), state.path.c_str());
     LOG_DBG("WEB", "[UPLOAD] Free heap: %d bytes", ESP.getFreeHeap());
+
+    String normalizedPath;
+    if (!isSafeUploadTarget(state.path, state.fileName, normalizedPath)) {
+      state.error = "Invalid or protected upload path";
+      return;
+    }
+    state.path = normalizedPath;
 
     // Create file path
     String filePath = state.path;
@@ -1295,11 +1323,12 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
           wsLastProgressSent = 0;
           wsUploadStartTime = millis();
 
-          // Ensure path is valid
-          if (!wsUploadPath.startsWith("/")) wsUploadPath = "/" + wsUploadPath;
-          if (wsUploadPath.length() > 1 && wsUploadPath.endsWith("/")) {
-            wsUploadPath = wsUploadPath.substring(0, wsUploadPath.length() - 1);
+          String normalizedPath;
+          if (!isSafeUploadTarget(wsUploadPath, wsUploadFileName, normalizedPath)) {
+            wsServer->sendTXT(num, "ERROR:Invalid or protected upload path");
+            break;
           }
+          wsUploadPath = normalizedPath;
 
           // Build file path
           String filePath = wsUploadPath;
