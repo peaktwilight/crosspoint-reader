@@ -81,6 +81,22 @@ bool isProtectedItemName(const String& name) {
   }
   return false;
 }
+
+bool isProtectedWebPath(const String& path) {
+  const String normalized = normalizeWebPath(path);
+  int segmentStart = normalized.startsWith("/") ? 1 : 0;
+  while (segmentStart < normalized.length()) {
+    int segmentEnd = normalized.indexOf('/', segmentStart);
+    if (segmentEnd < 0) {
+      segmentEnd = normalized.length();
+    }
+    if (isProtectedItemName(normalized.substring(segmentStart, segmentEnd))) {
+      return true;
+    }
+    segmentStart = segmentEnd + 1;
+  }
+  return false;
+}
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -994,31 +1010,12 @@ void CrossPointWebServer::handleDelete() const {
       continue;
     }
 
-    // Ensure path starts with /
-    if (!itemPath.startsWith("/")) {
-      itemPath = "/" + itemPath;
-    }
+    // Ensure path starts with / and canonicalize before checking or removing it.
+    itemPath = normalizeWebPath(itemPath);
 
-    // Security check: prevent deletion of protected items
-    const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
-
-    // Hidden/system files are protected
-    if (itemName.startsWith(".")) {
-      failedItems += itemPath + " (hidden/system file); ";
-      allSuccess = false;
-      continue;
-    }
-
-    // Check against explicitly protected items
-    bool isProtected = false;
-    for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
-      if (itemName.equals(HIDDEN_ITEMS[i])) {
-        isProtected = true;
-        break;
-      }
-    }
-    if (isProtected) {
-      failedItems += itemPath + " (protected file); ";
+    // Protect every hidden/system path segment, including hidden ancestors.
+    if (isProtectedWebPath(itemPath)) {
+      failedItems += itemPath + " (protected path); ";
       allSuccess = false;
       continue;
     }
