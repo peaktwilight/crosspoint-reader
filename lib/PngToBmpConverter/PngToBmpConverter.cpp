@@ -453,6 +453,28 @@ bool PngToBmpConverter::pngFileToBmpStreamInternal(FsFile& pngFile, Print& bmpOu
     return false;
   }
 
+  // Reject invalid PNG color type / bit-depth combinations before row sizing.
+  bool validBitDepth = false;
+  switch (colorType) {
+    case PNG_COLOR_GRAYSCALE:
+      validBitDepth = bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8 || bitDepth == 16;
+      break;
+    case PNG_COLOR_RGB:
+    case PNG_COLOR_GRAYSCALE_ALPHA:
+    case PNG_COLOR_RGBA:
+      validBitDepth = bitDepth == 8 || bitDepth == 16;
+      break;
+    case PNG_COLOR_PALETTE:
+      validBitDepth = bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8;
+      break;
+    default:
+      break;
+  }
+  if (!validBitDepth) {
+    LOG_ERR("PNG", "Unsupported color type / bit depth: %u / %u", colorType, bitDepth);
+    return false;
+  }
+
   // Calculate bytes per pixel and raw row bytes
   uint8_t bytesPerPixel;
   uint32_t rawRowBytes;
